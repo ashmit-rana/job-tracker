@@ -1,6 +1,6 @@
 from typing import Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from database import get_connection, init_db
@@ -42,3 +42,32 @@ def list_applications():
     rows = conn.execute("SELECT * FROM applications ORDER BY id DESC").fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+
+@app.put("/applications/{app_id}")
+def update_application(app_id: int, item: ApplicationIn):
+    conn = get_connection()
+    cursor = conn.execute(
+        "UPDATE applications "
+        "SET company = ?, role = ?, status = ?, applied_date = ?, notes = ? "
+        "WHERE id = ?",
+        (item.company, item.role, item.status, item.applied_date, item.notes, app_id),
+    )
+    conn.commit()
+    updated = cursor.rowcount
+    conn.close()
+    if updated == 0:
+        raise HTTPException(status_code=404, detail="Application not found")
+    return {"id": app_id, **item.model_dump()}
+
+
+@app.delete("/applications/{app_id}")
+def delete_application(app_id: int):
+    conn = get_connection()
+    cursor = conn.execute("DELETE FROM applications WHERE id = ?", (app_id,))
+    conn.commit()
+    deleted = cursor.rowcount
+    conn.close()
+    if deleted == 0:
+        raise HTTPException(status_code=404, detail="Application not found")
+    return {"message": "Deleted", "id": app_id}
